@@ -1,6 +1,11 @@
 #!/bin/bash
 
-PUBLIC_KEY="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINHUgIFRx4BG6vW3vl4Cc1CCLSmulA42S0wETnKeI+tH ansible"
+if [ "$#" -ne 1 ]; then
+    echo "Usage: $0 <public_key_file>"
+    exit 1
+fi
+
+PUBLIC_KEY=$(cat "$1")
 HOME_DIR="/home/ansible"
 TGT_USER="ansible"
 
