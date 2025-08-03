@@ -1,0 +1,104 @@
+---
+- name: Join Linux machine to Active Directory domain
+  hosts: all
+  become: true
+  vars_files:
+    - vars.yml
+    - vault.yml
+  tasks:
+    - name: Ensure required packages are installed
+      apt:
+        name:
+          - realmd
+          - sssd
+          - sssd-tools
+          - adcli
+          - packagekit
+          - samba-common-bin
+        state: present
+        update_cache: yes
+
+    - name: Set DNS in /etc/systemd/resolved.conf
+      ini_file:
+        path: /etc/systemd/resolved.conf
+        section: "Resolve"
+        option: DNS
+        value: "{{ dns_server }}"
+        no_extra_spaces: true
+        mode: "0600"
+
+    - name: Set domain in /etc/systemd/resolved.conf
+      ini_file:
+        path: /etc/systemd/resolved.conf
+        section: "Resolve"
+        option: Domains
+        value: "{{ domain_name }}"
+        no_extra_spaces: true
+        mode: "0644"
+
+    - name: Restart systemd-resolved to apply DNS changes
+      systemd:
+        name: systemd-resolved
+        state: restarted
+        enabled: true
+
+    - name: Check if machine is already joined to domain
+      command: realm list
+      register: realm_check
+      changed_when: false
+      failed_when: false
+
+    - name: Join domain if not already joined
+      expect:
+        command: >
+          realm join {{ domain_name }} -U {{ domain_user }}
+        responses:
+          "Password for .*:": "{{ domain_user_password }}"
+      when: "domain_name not in realm_check.stdout"
+      #no_log: true
+
+    - name: Permit AD group to login
+      command: realm permit -g {{ permitted_group }}
+      register: realm_permit
+      changed_when: "'already permitted' not in realm_permit.stdout"
+
+    - name: Ensure fallback_homedir is set in sssd.conf
+      ini_file:
+        path: /etc/sssd/sssd.conf
+        section: "domain/{{ domain_name }}"
+        option: fallback_homedir
+        value: "/home/%u"
+        no_extra_spaces: true
+        mode: "0600"
+
+    - name: Ensure use_fully_qualified_names is set to False in sssd.conf
+      ini_file:
+        path: /etc/sssd/sssd.conf
+        section: "domain/{{ domain_name }}"
+        option: use_fully_qualified_names
+        value: "False"
+        no_extra_spaces: true
+        mode: "0600"
+
+    - name: Restart SSSD after modifying sssd.conf
+      systemd:
+        name: sssd
+        state: restarted
+        enabled: true
+
+    - name: Ensure pam_mkhomedir is enabled
+      lineinfile:
+        path: /etc/pam.d/common-session
+        line: "session required pam_mkhomedir.so skel=/etc/skel umask=0077"
+        state: present
+        create: yes
+        insertafter: EOF
+
+    - name: Create sudoers file for AD group
+      copy:
+        dest: "{{ sudoers_file }}"
+        content: "%{{ sudo_group }} ALL=(ALL) ALL"
+        owner: root
+        group: root
+        mode: "0440"
+
