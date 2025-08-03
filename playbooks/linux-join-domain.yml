@@ -3,8 +3,8 @@
   hosts: all
   become: true
   vars_files:
-    - vars.yml
-    - vault.yml
+    - ../vars/linux-join-domain.yml
+    - ../vault/secrets.yml
   tasks:
     - name: Ensure required packages are installed
       apt:
