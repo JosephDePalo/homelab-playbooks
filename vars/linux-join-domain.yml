@@ -1,5 +1,4 @@
 domain_name: jd.lab
-domain_user: 'Administrator'
 permitted_group: engineers
 dns_server: 10.0.0.35
 sudo_group: sudoers
