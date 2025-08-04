@@ -1,6 +1,6 @@
 ---
 - name: Join Linux machine to Active Directory domain
-  hosts: all
+  hosts: linux
   become: true
   vars_files:
     - ../vars/linux-join-domain.yml
